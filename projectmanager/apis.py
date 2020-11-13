@@ -48,15 +48,25 @@ class PageViews(APIView):
                 log=3
                 location=add_location_form.cleaned_data['location']
                 project_id=add_location_form.cleaned_data['page_id']
-                project=ProjectRepo(user=user).project(project_id=project_id)
+                location=location.replace('width="600"','width="100%"')
+                location=location.replace('height="450"','height="400"')                    
+                # project=ProjectRepo(user=user).project(project_id=project_id)
+                project=ProjectRepo(user=user).edit_location(project_id=project_id,location=location)
                 if project is not None:
-                    log=4
-                    location=location.replace('width="600"','width="100%"')
-                    location=location.replace('height="450"','height="400"')
-                    project.location=location
-                    project.save()
+                    log=4                    
                     return JsonResponse({'result':SUCCEED,'location':location})
         return JsonResponse({'result':FAILED,'log':log})
+    def add_materialwarehouse(self,request):
+        user=request.user
+        if request.method=='POST':
+            add_materialwarehouse_form=AddMaterialWareHouseForm(request.POST)
+            if add_materialwarehouse_form.is_valid():
+                title=add_materialwarehouse_form.cleaned_data['title']
+                parent_id=add_materialwarehouse_form.cleaned_data['parent_id']
+                materialwarehouse=MaterialWareHouseRepo(user=user).add(title=title,parent_id=parent_id)
+                if materialwarehouse is not None:
+                    materialwarehouse_s=MaterialWareHouseSerializer(materialwarehouse).data
+                    return JsonResponse({'result':SUCCEED,'materialwarehouse':materialwarehouse_s})
     def add_contractor(self,request):
         user=request.user
         if request.method=='POST':
@@ -66,7 +76,7 @@ class PageViews(APIView):
                 contractor=ContractorRepo(user=user).add(title=title)
                 if contractor is not None:
                     contractor_s=ContractorSerializer(contractor).data
-                    return JsonResponse(contractor_s)
+                    return JsonResponse({'result':SUCCEED,'contractor':contractor_s})
     def add_event(self,request):
         log=1
         user=request.user
@@ -148,4 +158,23 @@ class PageViews(APIView):
                     log=4
                     employee_s=EmployeeSerializer(employee).data
                     return JsonResponse({'result':SUCCEED,'employee':employee_s})
+        return JsonResponse({'result':FAILED,'log':log})
+    def do_signature(self,request):
+        log=1
+        user=request.user
+        if request.method=='POST':
+            log=2
+            do_signature_form=DoSignatureForm(request.POST)
+            if do_signature_form.is_valid():
+                log=3
+                materialrequest_id=do_signature_form.cleaned_data['materialrequest_id']
+                description=do_signature_form.cleaned_data['description']
+                status=do_signature_form.cleaned_data['status']
+
+
+                signature=MaterialRequestRepo(user=user).do_signature(status=status,description=description,materialrequest_id=materialrequest_id)
+                if signature is not None:
+                    log=4
+                    signature_s=MaterialRequestSignatureSerializer(signature).data
+                    return JsonResponse({'result':SUCCEED,'signature':signature_s})
         return JsonResponse({'result':FAILED,'log':log})

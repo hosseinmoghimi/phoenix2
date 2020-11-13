@@ -6,7 +6,7 @@ from dashboard.constants import *
 from dashboard.enums import *
 from django.core.validators import MinValueValidator, MaxValueValidator
 from dashboard.enums import ColorEnum
-from .enums import StatusColor
+from .enums import StatusColor,MaterialRequestStatusEnum,SignatureStatusEnum
 import os
 from django.http import Http404, HttpResponse
 from django.db import models
@@ -69,7 +69,9 @@ class ManagerPage(DashboardPage):
                       </h4>
                     </a>
                     <div class="description text-secondary">
-                      {self.short_description if self.short_description else '&nbsp;'}
+                        <p>
+                         {self.short_description if self.short_description else '&nbsp;'}
+                        </p>
                    </div>
                   </div>
                 </div>
@@ -153,7 +155,8 @@ class Project(ManagerPage):
     class Meta:
         verbose_name = _("Project")
         verbose_name_plural = _("Projects")
-
+    def material_requests(self):
+        return MaterialRequest.objects.filter(project=self)
 
 class Employee(models.Model):
     profile = models.ForeignKey("authentication.Profile", related_name='employee_set_m', verbose_name=_(
@@ -211,7 +214,7 @@ class Employee(models.Model):
         verbose_name_plural = _("Employees - کارکنان")
 
     def get_absolute_url(self):
-        return self.profile.get_absolute_url()
+        return reverse(APP_NAME+':employee',kwargs={'pk':self.pk})
 
     def get_edit_url(self):
         if self.profile is not None:
@@ -328,7 +331,8 @@ class OrganizationUnit(ManagerPage):
 		verbose_name_plural = _("OrganizationUnits")
 
 	def save(self):
-		self.child_class = 'organizationunit'
+		if self.child_class is None:
+			self.child_class = 'organizationunit'
 		super(OrganizationUnit, self).save()
 
 	def employees(self):
@@ -401,3 +405,234 @@ class ArchiveDocument(ManagerPage):
     def save(self):
         self.child_class = 'archivedocument'
         super(ArchiveDocument, self).save()
+
+
+
+class MaterialBrand(ManagerPage):
+    
+    def save(self):
+        self.child_class='materialbrand'
+        super(MaterialBrand,self).save()
+    rate=models.IntegerField(_("امتیاز"),default=0)    
+    url=models.CharField(_("آدرس اینترتی"),null=True,blank=True,max_length=100)
+
+
+    class Meta:
+        verbose_name = _("Brand")
+        verbose_name_plural = _("Brands - برند های متریال")
+
+ 
+
+    def get_edit_url(self):
+        return ADMIN_URL+APP_NAME+'/brand/'+str(self.pk)+'/change/'
+
+
+class MaterialCategory(ManagerPage):
+    
+    def save(self):
+        self.child_class='materialcategory'
+        super(MaterialCategory,self).save()
+    
+    rate=models.IntegerField(_("امتیاز"),default=0)
+    def materials(self):
+        return Material.objects.filter(category=self)
+    
+   
+    class Meta:
+        verbose_name = _("MaterialCategory")
+        verbose_name_plural = _("MaterialCategories - دسته بندی های متریال")
+
+
+class Material(ManagerPage):
+    
+    def save(self):
+        self.child_class='material'
+        super(Material,self).save()
+    brand=models.ForeignKey("MaterialBrand",null=True,blank=True,verbose_name=_("brand"), on_delete=models.CASCADE)
+    model=models.CharField(_("model"),null=True,blank=True, max_length=50)
+    category=models.ForeignKey("MaterialCategory",related_name='material_category',on_delete=models.PROTECT)
+    unit_name=models.CharField(_('واحد'),null=True,blank=True,max_length=50)
+    
+     
+
+    class Meta:
+        verbose_name = _("Material")
+        verbose_name_plural = _("Materials -  متریال ها")
+
+
+class MaterialWareHouse(OrganizationUnit):
+    
+    def save(self):
+        # if self.location:
+        #     self.location=self.location.replace('width="600"','width="100%"')
+        #     self.location=self.location.replace('height="450"','height="400"')
+        
+        self.child_class='materialwarehouse'
+        super(MaterialWareHouse,self).save()
+    address=models.CharField(_("آدرس"),null=True,blank=True, max_length=50)
+    class Meta:
+        verbose_name = _("MaterialWareHouse")
+        verbose_name_plural = _("MaterialWareHouses - انبار های متریال")
+    def employees(self):
+        return []
+    def materials(self):
+        materialinstock_set=self.materialinstock_set.all()
+        # MaterialObject.objects.filter(id__in=self.materialinstock_set.values('material_object_id'))
+        # materials=materialobject_set.all()
+        return materialinstock_set.order_by('material_object')
+    def materials3(self):
+        materialinstock_set=self.materialinstock_set.all()
+        # materialobject_set=MaterialObject.objects.filter(id__in=list(materialinstock_set.values('material_object_id')))
+        # material_set=materialobject_set.only('material')
+        # MaterialObject.objects.filter(id__in=self.materialinstock_set.values('material_object_id'))
+        # materials=materialobject_set.all()
+        materialobjects = MaterialObject.objects.filter(
+            id__in=materialinstock_set.values('material_object_id')
+        )
+
+        materials=Material.objects.all().annotate(
+        most_benevolent_hero=Subquery(
+                materialobjects.values('material')[:1]
+            )
+        )
+
+        materials=materialobjects.annotate(
+        most_benevolent_hero=Count('material')
+        )
+
+        return materials
+    def materials2(self):
+        materialinstock_set=self.materialinstock_set.all()
+        # materialobject_set=MaterialObject.objects.filter(id__in=list(materialinstock_set.values('material_object_id')))
+        # material_set=materialobject_set.only('material')
+        # MaterialObject.objects.filter(id__in=self.materialinstock_set.values('material_object_id'))
+        # materials=materialobject_set.all()
+        materialobjects = MaterialObject.objects.filter(
+            id__in=materialinstock_set.values('material_object_id')
+        )
+        materials=materialobjects.raw('SELECT COUNT(*) AS count1,id,material_id FROM projectmanager_materialobject GROUP BY material_id')
+        materials1=Material.objects.all().annotate(
+        most_benevolent_hero=Subquery(
+                materialobjects.values('material')[:1]
+            )
+        )
+
+        materials1=materialobjects.annotate(
+        most_benevolent_hero=Count('material')
+        )
+
+        return materials
+
+
+class MaterialObject(models.Model):
+    material=models.ForeignKey("Material", verbose_name=_("material"), on_delete=models.CASCADE)
+    serial_no=models.CharField(_('serial_no'),null=True,blank=True,max_length=200)
+    barcode1=models.CharField(_('barcode1'),null=True,blank=True,max_length=200)
+    borcode2=models.CharField(_('barcode2'),null=True,blank=True,max_length=200)
+    barcode3=models.CharField(_('barcode3'),null=True,blank=True,max_length=200)
+    package_no=models.CharField(_("package_no"), null=True,blank=True,max_length=50)
+    package_name=models.CharField(_("package_name"), null=True,blank=True,max_length=50)
+    
+
+    class Meta:
+        verbose_name = _("MaterialObject")
+        verbose_name_plural = _("MaterialObjects- متریال های موجود")
+
+    def __str__(self):
+        return f'{self.material.title} {self.serial_no if self.serial_no else "با شناسه"+str(self.pk)}'
+
+    def get_absolute_url(self):
+        return reverse('projectmanager:materialobject',kwargs={'materialobject_id':self.pk})
+
+    def get_edit_url(self):
+        return f'{ADMIN_URL}{APP_NAME}/materialobject/{self.pk}/change/'
+
+
+class MaterialPackage(models.Model):
+    
+    pack_no=models.CharField(_("pack_no"), max_length=50)
+    material_objects=models.ManyToManyField("MaterialObject", verbose_name=_("material_objects"))
+     
+
+    class Meta:
+        verbose_name = _("MaterialPackage")
+        verbose_name_plural = _("MaterialPackages - پکیج های متریال")
+
+    def __str__(self):
+        return f'{self.pack_no} {self.name}'
+
+    def get_absolute_url(self):
+        return reverse("MaterialPackage_detail", kwargs={"pk": self.pk})
+
+
+class MaterialInStock(models.Model):
+    material_object=models.ForeignKey("MaterialObject", verbose_name=_("متریال"), on_delete=models.CASCADE)
+    warehouse=models.ForeignKey("MaterialWareHouse", verbose_name=_("انبار متریال"), on_delete=models.CASCADE)
+    row=models.IntegerField(_('قفسه'))
+    col=models.IntegerField(_('ردیف'))
+    date_added=models.DateTimeField(_('تاریخ ثبت') , auto_now_add=True,auto_now=False)
+    date_opi=models.DateTimeField(_('تاریخ opi') , auto_now_add=False,auto_now=False,null=True,blank=True)
+
+    class Meta:
+        verbose_name = _("MaterialInStock")
+        verbose_name_plural = _("MaterialInStocks- متریال های موجود در انبار")
+
+    def __str__(self):
+        return str(self.material_object)+str(self.warehouse)
+    def get_edit_url(self):
+        return f'{ADMIN_URL}{APP_NAME}/materialinstock/{self.pk}/change'    
+
+
+class MaterialRequest(models.Model):
+    material=models.ForeignKey("Material", verbose_name=_("متریال"), on_delete=models.PROTECT)
+    quantity=models.IntegerField(_("تعداد"))
+    project=models.ForeignKey("Project", verbose_name=_("پروژه"), on_delete=models.PROTECT)
+    description=models.CharField(_("توضیحات"),null=True,blank=True,default='', max_length=50)
+    profile=models.ForeignKey("authentication.Profile", verbose_name=_("تحویل گیرنده"), on_delete=models.PROTECT)
+    date_added=models.DateTimeField(_("تاریخ درخواست"), auto_now=False, auto_now_add=True)
+    date_delivered=models.DateTimeField(_("تاریخ درخواست"),null=True,blank=True, auto_now=False, auto_now_add=False)
+    status=models.CharField(_("وضعیت"),choices=MaterialRequestStatusEnum.choices,default=MaterialRequestStatusEnum.DEFAULT, max_length=50)
+
+    class_name='materialrequest'
+
+    class Meta:
+        verbose_name = _("MaterialRequest")
+        verbose_name_plural = _("درخواست های متریال")
+    def persian_date_delivered(self):
+        return PersianCalendar().from_gregorian(self.date_delivered)
+    def persian_date_added(self):
+        return PersianCalendar().from_gregorian(self.date_added)
+    def __str__(self):
+        return f'{self.project.title} ___  {self.material.title} #{self.quantity} {self.material.unit_name}'
+
+    def get_absolute_url(self):
+        return reverse(f'{APP_NAME}:{self.class_name}', kwargs={"pk": self.pk})
+    def get_edit_url(self):
+        return f'{ADMIN_URL}{APP_NAME}/{self.class_name}/{self.pk}/change/'
+    def get_status_color(self):
+        return StatusColor(self.status)
+
+    def get_status_tag(self):
+        return f"""<span class="badge badge-pill badge-{self.get_status_color()}">{self.status}</span>"""
+    def signatures(self):
+        return MaterialRequestSignature.objects.filter(materialrequest=self).order_by('-date_added')
+
+
+class MaterialRequestSignature(models.Model):
+    materialrequest=models.ForeignKey("materialrequest", verbose_name=_("درخواست"), on_delete=models.PROTECT)
+    profile=models.ForeignKey("authentication.Profile", verbose_name=_("profile"), on_delete=models.PROTECT)
+    date_added=models.DateTimeField(_("date_added"), auto_now=False, auto_now_add=True)
+    description=models.CharField(_("description"), max_length=200)
+    status=models.CharField(_("status"),choices=SignatureStatusEnum.choices,default=SignatureStatusEnum.DEFAULT, max_length=200)
+    class Meta:
+        verbose_name = _("MaterialRequestSignature")
+        verbose_name_plural = _("امضا ها")
+
+    def __str__(self):
+        return f'{self.profile.name()} : {self.description} @ {PersianCalendar().from_gregorian(self.date_added)}'
+
+    def persian_date_added(self):
+        return PersianCalendar().from_gregorian(self.date_added)
+    
+    def get_status_color(self):
+        return StatusColor(self.status)

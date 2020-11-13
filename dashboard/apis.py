@@ -47,15 +47,10 @@ class PageViews(APIView):
                 tag_id=remove_tag_form.cleaned_data['tag_id']
                 page_id=remove_tag_form.cleaned_data['page_id']
                 user=request.user
-                page=PageRepo(user=user).page(page_id=page_id)
-                tag=TagRepo(user=user).tag(tag_id=tag_id)
-                if page is not None and tag is not None:
-                    page.tags.remove(tag)  
-                    page.save()
-                    tags=page.tags.all()                  
-                    tags_s=TagSerializer(tags,many=True).data
+                page=PageRepo(user=user).remove_tag(page_id=page_id,tag_id=tag_id)
+                if page is not None:
+                    tags_s=TagSerializer(page.tags.all(),many=True).data
                     return JsonResponse({'tags':tags_s,'result':SUCCEED})
-
         return JsonResponse({'result':FAILED})
 
     def add_tag(self,request,*args, **kwargs):        
@@ -65,16 +60,8 @@ class PageViews(APIView):
                 title=add_tag_form.cleaned_data['title']
                 page_id=add_tag_form.cleaned_data['page_id']
                 user=request.user
-                page=PageRepo(user=user).page(page_id=page_id)
-                if page is not None:
-                    tag=TagRepo(user=user).get_by_title(title=title)
-                    if tag is None:
-                        icon=Icon(icon_title='tag',icon_fa='fa fa-tag')
-                        icon.save()
-                        tag=Tag(title=title,icon=icon)
-                        tag.save()
-                    page.tags.add(tag)  
-                    page.save()
+                page=PageRepo(user=user).add_tag(page_id=page_id,tag_title=title)
+                if page is not None:                    
                     tags=page.tags.all()                  
                     tags_s=TagSerializer(tags,many=True).data
                     return JsonResponse({'tags':tags_s,'result':SUCCEED})
@@ -93,13 +80,9 @@ class PageViews(APIView):
                 title=add_document_form.cleaned_data['title']
                 page_id=add_document_form.cleaned_data['page_id']                
                 file1=request.FILES['file1']              
-                page=PageRepo(user=user).page(page_id=page_id)
+                page=PageRepo(user=user).add_document(page_id=page_id,file1=file1,title=title)
                 if page is not None:
-                    level=4
-                    document=Document(profile=profile,title=title,icon_title='tag',icon_material='get_app',file=file1)
-                    document.save()
-                    page.documents.add(document)  
-                    page.save()
+                    level=4                    
                     documents=page.documents.all()                  
                     documents_s=DocumentSerializer(documents,many=True).data
                     return JsonResponse({'documents':documents_s,'result':SUCCEED})
@@ -122,15 +105,9 @@ class PageViews(APIView):
                 
                 image=request.FILES['image']              
                 thumbnail=request.FILES['thumbnail']              
-                page=PageRepo(user=user).page(page_id=page_id)
+                page=PageRepo(user=user).add_image(page_id=page_id,image=image,thumbnail=thumbnail,location=location,image_title=image_title,image_description=image_description)
                 if page is not None:
-                    level=4
-                    image=GalleryPhoto(profile=profile,image_title=image_title,
-                    image_description=image_description,thumbnail_origin=thumbnail,
-                    image_origin=image,location=location)
-                    image.save()
-                    page.images.add(image)  
-                    page.save()
+                    level=4                    
                     images=page.images.all()                  
                     images_s=GalleryPhotoSerializer(images,many=True).data
                     return JsonResponse({'images':images_s,'result':SUCCEED})
@@ -193,13 +170,9 @@ class PageViews(APIView):
                 url=add_link_form.cleaned_data['url']
                 page_id=add_link_form.cleaned_data['page_id']
                 
-                page=PageRepo(user=user).page(page_id=page_id)
+                page=PageRepo(user=user).add_link(page_id=page_id,url=url,title=title)
                 if page is not None:
-                    level=4
-                    link=Link(profile_adder=profile,title=title,icon_title='tag',icon_material='link',url=url)
-                    link.save()
-                    page.links.add(link)  
-                    page.save()
+                    level=4                    
                     links=page.links.all()                  
                     link_s=LinkSerializer(links,many=True).data
                     return JsonResponse({'links':link_s,'result':SUCCEED})

@@ -2,10 +2,13 @@ import json
 from .apps import APP_NAME
 from .forms import *
 from .repo import *
+from .enums import *
 from .serializers import *
 from app.views import PageViews as AppPageViews
 from .utils import AdminUtility
 from dashboard.repo import TagRepo
+from dashboard.forms import AddResumeCategoryForm,AddResumeForm
+from dashboard.serializers import ResumeCategorySerializer
 from dashboard.forms import AddDocumentForm,AddTagForm,AddLinkForm,AddImageForm
 from dashboard.serializers import TagSerializer,DocumentSerializer,LinkSerializer,GalleryPhotoSerializer
 from dashboard.views import getContext as DashboardContext
@@ -72,8 +75,13 @@ class BasicViews(View):
         context['contractors']=contractors
         if user.has_perm(APP_NAME+'.add_project'):
             context['add_project_form']=AddProjectForm()
+        if user.has_perm(APP_NAME+'.add_materialwarehouse'):
+            context['add_materialwarehouse_form']=AddMaterialWareHouseForm()
         if user.has_perm(APP_NAME+'.add_contracotr'):
             context['add_contracotr_form']=AddContractorForm()
+        materialwarehouses=MaterialWareHouseRepo(user=user).list()
+        materialwarehouses_s=json.dumps(MaterialWareHouseSerializer(materialwarehouses,many=True).data)
+        context['materialwarehouses_s']=materialwarehouses_s
         projects_s=json.dumps(ProjectSerializer(projects,many=True).data)
         context['projects_s']=projects_s
         contractors_s=json.dumps(ContractorSerializer(contractors,many=True).data)
@@ -120,6 +128,44 @@ class PageViews(View):
         context['links_s']=json.dumps(LinkSerializer(page.links.all(),many=True).data)
         context['documents_s']=json.dumps(DocumentSerializer(page.documents.all(),many=True).data)
         return context
+
+    def materialwarehouse(self,request,pk,*args, **kwargs):
+        user=request.user
+        materialwarehouse_id=pk
+        material_warehouse_repo=MaterialWareHouseRepo(user=user)
+        materialwarehouse=material_warehouse_repo.materialwarehouse(materialwarehouse_id=materialwarehouse_id)
+        context=self.getManagerPageContext(request,materialwarehouse)
+        context['page_type']='انبار متریال'
+        context['page']=materialwarehouse
+        material_in_stocks=material_warehouse_repo.list_materials_in_stock(materialwarehouse_id=materialwarehouse_id)
+        material_in_stocks_s=json.dumps(MaterialInStockSerializer(material_in_stocks,many=True).data)
+        context['material_in_stocks_s']=material_in_stocks_s
+        context['organizationunit']=materialwarehouse
+        context['materialwarehouse']=materialwarehouse
+        context['projects_s']="[]"
+        context['organizationunits_s']=json.dumps(OrganizationUnitSerializer(materialwarehouse.childs(),many=True).data)
+        
+        if user.has_perm(APP_NAME+'.add_organizationunit'):
+            context['add_organizationunit_form']=AddOrganizationUnitForm()
+        if user.has_perm(APP_NAME+'.add_employee'):
+            context['add_employee_form']=AddEmployeeForm()
+        context['roles_s']=json.dumps(list(x for x in EmployeeEnum))
+        employees_s=json.dumps(EmployeeSerializer(materialwarehouse.employee_set.all(),many=True).data)
+        context['employees_s']=employees_s
+
+        return render(request,TEMPLATE_ROOT+'material-warehouse.html',context)
+
+    def material(self,request,pk,*args, **kwargs):
+        user=request.user
+        material_id=pk
+        material_repo=MaterialRepo(user=user)
+        material=material_repo.material(material_id=material_id)
+        context=self.getManagerPageContext(request,material)
+        context['page_type']='متریال'
+        context['page']=material
+        context['material']=material
+        return render(request,TEMPLATE_ROOT+'material.html',context)
+
     def presentation(self,request,pk,*args, **kwargs):
         page_id=pk
         user=request.user
@@ -159,6 +205,9 @@ class PageViews(View):
         assignments_s=json.dumps(AssignmentSerializer(project.project_assignments.all(),many=True).data)
         context['assignments_s']=assignments_s
 
+
+        material_requests_s=json.dumps(MaterialRequestSerializer(project.material_requests(),many=True).data)
+        context['material_requests_s']=material_requests_s
 
         organizationunits_s=json.dumps(OrganizationUnitSerializer(project.organization_units.all(),many=True).data)
         context['organizationunits_s']=organizationunits_s
@@ -233,3 +282,41 @@ class DownloadViews(View):
         report_work_book.sheets.append(ReportSheet(data=lines_s,table_headers=None,title='سفارش شماره '+str(page_id)))
         response=report_work_book.to_excel()    
         return response
+
+
+class EmployeeViews(View):
+    def employee(self,request,pk,*args, **kwargs):
+        user=request.user
+        employee_id=pk
+        employee=EmployeeRepo(user=user).employee(employee_id=employee_id)
+        if employee is None:
+            raise Http404
+        context=getContext(request=request)
+        selected_profile=employee.profile
+        context['body_class']='profile-page'
+        context['selected_profile']=selected_profile
+
+        if selected_profile is not None:
+            context['add_resume_category_form']=AddResumeCategoryForm()
+            context['add_resume_form']=AddResumeForm()
+        resumecategories=selected_profile.resumecategory_set.all()
+        resumecategories_s=json.dumps(ResumeCategorySerializer(resumecategories,many=True).data)
+        context['resumecategories_s']=resumecategories_s
+
+        context['employee']=employee
+        return render(request,TEMPLATE_ROOT+'employee.html',context)
+
+class MaterialRequestViews(View):
+    def materialrequest(self,request,pk,*args, **kwargs):
+        user=request.user
+        context=getContext(request)
+        materialrequest_id=pk
+        materialrequest=MaterialRequestRepo(user=user).materialrequest(materialrequest_id=materialrequest_id)
+        materialrequest_s=json.dumps(MaterialRequestSerializer(materialrequest).data)
+        # print(materialrequest_s)
+        context['materialrequest_s']=materialrequest_s
+        signaturestatuses_s=json.dumps(list(x for x in SignatureStatusEnum))
+        context['signaturestatuses_s']=signaturestatuses_s
+        context['do_signature_form']=DoSignatureForm()
+        context['signatures_s']=json.dumps(MaterialRequestSignatureSerializer(materialrequest.signatures(),many=True).data)
+        return render(request,TEMPLATE_ROOT+'material-request.html',context)

@@ -15,6 +15,39 @@ class EventSerializer(serializers.ModelSerializer):
     class Meta:
         model=Event        
         fields=['get_tag']
+class MaterialSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=Material        
+        fields=['id','title','short_description','thumbnail','get_absolute_url','get_edit_url','unit_name']
+
+class MaterialObjectSerializer(serializers.ModelSerializer):
+    material=MaterialSerializer()
+    class Meta:
+        model=MaterialObject        
+        fields=['id','material','serial_no']
+
+class MaterialRequestSignatureSerializer(serializers.ModelSerializer):
+    profile=ProfileSerializer()
+    class Meta:
+        model=MaterialRequestSignature        
+        fields=['id','profile','status','description','persian_date_added','get_status_color']
+class MaterialRequestSerializer(serializers.ModelSerializer):
+    material=MaterialSerializer()
+    profile=ProfileSerializer()
+    project=ProjectSerializer()
+    class Meta:
+        model=MaterialRequest      
+        fields=['id','material','profile','project','get_absolute_url','get_edit_url','get_status_tag','quantity','persian_date_added','persian_date_delivered']
+class MaterialWareHouseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=MaterialWareHouse        
+        fields=['id','get_link']
+        
+class MaterialInStockSerializer(serializers.ModelSerializer):
+    material_object=MaterialObjectSerializer()
+    class Meta:
+        model=MaterialInStock        
+        fields=['id','material_object','row','col']
 class EmployeeSerializer(serializers.ModelSerializer):
     profile=ProfileSerializer()
     class Meta:
