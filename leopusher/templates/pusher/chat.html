@@ -1,0 +1,244 @@
+{% extends "dashboard/layout.html" %}
+{% load static %}
+{% load to_price %}
+
+{% block style %}
+
+{% endblock  %}
+{% block content %}
+<div class="row" id="app">
+
+
+	<div class="col-12">
+		<div class="page-categories">
+
+			<ul class="nav nav-pills nav-pills-warning nav-pills-icons justify-content-center" role="tablist">
+				<li class="nav-item" v-for="channel in channels">
+					<a class="nav-link google-drive-opener" data-toggle="tab" href="#link7" role="tablist">
+						<i class="material-icons">info</i>
+						{% verbatim %}
+						{{channel.channel_event.channel.channel_name}}
+						{% endverbatim %}
+						<p class="card-category">
+							{% verbatim %}
+							{{channel.channel_event.event_name}}
+							{% endverbatim %}
+						</p>
+					</a>
+				</li>
+			</ul>
+			<div class="tab-content tab-space tab-subcategories" v-for="channel in channels">
+				<div class="tab-pane" id="link7">
+					<div class="card card-timeline card-plain">
+						<div class="card-body">
+							<ul class="timeline">
+
+
+								<li class="timeline-inverted">
+									<div class="timeline-badge danger">
+
+										<img src="{{profile.image}}" class="rounded-circle" width="52" alt="">
+									</div>
+									<div class="timeline-panel">
+										<div class="timeline-heading">
+											<span class="badge badge-pill badge-danger">{{profile.name}}</span>
+										</div>
+										<div class="timeline-body">
+
+											<div class="form-group bmd-form-group">
+												<label for="exampleInput1" class="bmd-label-floating">پیام جدید</label>
+
+
+												<input type="hidden" name="parent_id" value="0">
+												<form @submit.prevent="send_message(channel.channel_event.id)">
+													<input type="text" id="exampleInput1" v-model="new_message"
+														required="required" aria-required="true" class="form-control">
+												</form>
+											</div>
+										</div>
+										<h6>
+											<i class="ti-time"></i>
+											{{current_date}} تاریخ
+										</h6>
+									</div>
+								</li>
+
+
+								<li :class="profile_id==message.profile.id?'timeline-inverted': ''"
+									v-for="message in sorted_messages(channel.channel_event.messages)">
+									<div class="timeline-badge danger">
+
+										<img :src="message.profile.image" class="rounded-circle" width="52" alt="">
+									</div>
+									<div class="timeline-panel">
+										<div class="timeline-heading">
+											<span class="badge badge-pill badge-danger"
+												v-text="message.profile.name"></span>
+										</div>
+										<div class="timeline-body">
+											<p v-text="message.text"></p>
+										</div>
+										<h6>
+											<i class="ti-time"></i>
+											{% verbatim %}
+											{{message.persian_date_added}}
+											{% endverbatim %}
+										</h6>
+									</div>
+								</li>
+
+
+
+
+
+								<li class=""
+									@click="get_messages(channel.channel_event.messages[channel.channel_event.messages.length-1].id)">
+
+									<div title="پیام های قبلی" class="timeline-badge danger" style="cursor: pointer;">
+										<i class="material-icons">cached
+										</i>
+									</div>
+
+								</li>
+
+
+							</ul>
+						</div>
+					</div>
+				</div>
+
+
+			</div>
+		</div>
+
+	</div>
+</div>
+{% endblock  %}
+
+{% block script %}
+<script src="{% static 'vendor/js/vue.min.js' %}"></script>
+<script>
+	let channels = JSON.parse(`{{channels_s|escapejs}}`)
+	let url_send_messages = "{% url 'pusher:send_message' %}"
+	let url_get_messages = "{% url 'pusher:get_messages' %}"
+	let profile_id = parseInt(`{{profile.id}}`)
+	let app = new Vue({
+		el: "#app",
+		data: {
+			channels: channels,
+			profile_id: profile_id,
+			has_more: true,
+			new_message: '',
+		},
+		methods: {
+
+			receive_message: function (channel_name, event_name, message) {
+				// console.log('aaa: '+message.text)
+				app.channels.forEach(channel => {
+					if (channel.channel_event.channel.channel_name === channel_name && channel.channel_event.event_name === event_name) {
+
+						channel.channel_event.messages.reverse()
+						channel.channel_event.messages.push(message)
+						channel.channel_event.messages.reverse()
+					}
+				});
+
+
+			},
+
+
+
+
+			sorted_messages: function (messages) {
+				return messages
+				// return messages.sort((a, b) => (a.persian_date_added > b.persian_date_added) ? 1 : -1)
+			},
+			send_message: function (channel_event_id) {
+				// console.log(app.new_message)
+				var posting = $.post(url_send_messages,
+					{
+						text: app.new_message,
+						channelevent_id: channel_event_id,
+						csrfmiddlewaretoken: csrfmiddlewaretoken
+					}
+				);
+
+				// Put the results in a div
+				posting.done(function (data) {
+					// console.log(data)
+
+					if (data.result === 'SUCCEED') {
+						// app.channels.forEach(channel => {
+						// 	if (channel.channel_event.id == channel_event_id) {
+						// 		channel.channel_event.messages.reverse()
+						// 		channel.channel_event.messages.push(data.message)
+						// 		channel.channel_event.messages.reverse()
+						// 	}
+						// });
+						app.new_message = ''
+					}
+				})
+			},
+			get_messages: function (last_id) {
+				// console.log(last_id)
+				var posting = $.post(url_get_messages,
+					{
+						last_id: last_id,
+						csrfmiddlewaretoken: csrfmiddlewaretoken
+					}
+				);
+
+				// Put the results in a div
+				posting.done(function (data) {
+					console.log(data)
+
+					if (data.result === 'SUCCEED') {
+						app.channels.forEach(channel => {
+							if (channel.channel_event.id == data.messages[0].channel_event_id) {
+								channel.channel_event.messages = data.messages
+								app.has_more = data.has_more
+							}
+						});
+					}
+				})
+			}
+
+		},
+	})
+</script>
+
+<script src="{% static 'pusher/pusher.min.js'%}"></script>
+<script>
+	my_channel_events = JSON.parse(`{{my_channel_events_s|escapejs}}`)
+
+	my_channel_events.forEach(my_channel_event => {
+
+
+		// Enable pusher logging - don't include this in production
+		Pusher.logToConsole = logToConsole
+
+		var pusher = new Pusher(my_channel_event.channel.key, {
+			cluster: my_channel_event.channel.cluster
+		})
+			.subscribe(my_channel_event.channel.channel_name)
+			.bind(my_channel_event.event_name, function (data) {
+				// ###############################
+				// ###############################
+				// ###############################
+				// ###############################
+				// ###############################
+				channel_name = my_channel_event.channel.channel_name
+				event_name = my_channel_event.event_name
+				message = data.message
+				// console.log(channel_name)
+				// console.log(event_name)
+				// console.log(message)
+
+
+				app.receive_message(channel_name, event_name, message)
+			});
+
+	});
+
+</script>
+{% endblock  %}

@@ -1,7 +1,7 @@
 from django.views import View
 from django.shortcuts import render,redirect,reverse
 from .repo import PusherChannelEventRepo,PusherChannelRepo,ProfileChannelEventRepo
-
+from .serializers import *
 from dashboard.views import getContext as dashboardContext 
 from .forms import *
 from django.http import JsonResponse
@@ -12,8 +12,7 @@ import json
 TEMPLATE_ROOT='pusher/'
 def getContext(request):
     context = dashboardContext(request=request)
-    context["title"] = 'pusher'
-    
+    context["title"] = 'pusher'    
     return context
 
 class BeamView(View):
@@ -62,7 +61,16 @@ class IndexView(View):
         context['channel_events']=channel_events
         context['channel_events_s']=json.dumps(PusherChannelEventSerializer(channel_events,many=True).data)
         return render(request,TEMPLATE_ROOT+'pusher.html',context)
+
 class ChannelView(View):
+    
+
+    def chat(self,request,*args, **kwargs):
+        context=getContext(request=request)
+        context['get_messages_form']=GetMessagesForm()
+        channels=ProfileChannelEventRepo(user=request.user).my_channel_events()
+        context['channels_s']=json.dumps(ProfileChannelEventSerializer(channels,many=True).data)
+        return render(request,TEMPLATE_ROOT+'chat.html',context)
     def send_channel(self,request):        
         if request.method=='POST':
             send_pusher_channel_form=SendPusherChannelForm(request.POST)
